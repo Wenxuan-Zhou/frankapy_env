@@ -70,6 +70,10 @@ def rollout(env, agent, max_path_length=100, dynamic_command=False):
 
 
 class FakeAgent(object):
+    """
+    An action sequence wrapped into a policy format to be used in the rollout function.
+    """
+
     def __init__(self, actions=None):
         self.actions = np.array(actions)
         self.t = 0

@@ -100,6 +100,9 @@ class OSC(object):
             rospy.loginfo('OSC: Not using dynamics skill or the dynamic skill is stopped.')
 
     def _get_desired_pose(self, action):
+        """
+        Process the action space to get the desired pose
+        """
         base_pose = self.robot.get_pose().copy()
         pos = base_pose.translation
         orn = base_pose.rotation
@@ -146,6 +149,10 @@ class OSC(object):
         return new_pose
 
     def orientation_feasible(self, orn):
+        """
+        Check if the orientation is within the limit.
+        This is to avoid the robot being too much twisted.
+        """
         quat = RigidTransform(rotation=orn.dot(self.initial_ee_ori_mat)).quaternion
         angle = np.arccos(min(abs(quat[0]), 1)) / np.pi * 180 * 2
         assert self.orientation_limits.shape == (), 'Only taking a scalar limit for now.'
@@ -157,6 +164,9 @@ class OSC(object):
         return True
 
     def joint_limit_feasible(self, desired_pose):
+        """
+        Check if the desired pose will reach joint limit based on the jacobian.
+        """
         # joint limit from frankapy
         JOINT_LIMITS_MIN = np.array([-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973]) + 0.05
         JOINT_LIMITS_MAX = np.array([2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973]) - 0.05
@@ -180,10 +190,17 @@ class OSC(object):
     """
 
     def _step_robot(self, pose):
-        self.robot.goto_pose(pose, use_impedance=self.use_frankapy_impedance, cartesian_impedances=list(self.impedances),
+        """
+        Send a command to the robot (Blocking, non-dynamic)
+        """
+        self.robot.goto_pose(pose, use_impedance=self.use_frankapy_impedance,
+                             cartesian_impedances=list(self.impedances),
                              duration=1)
 
     def start_episode(self, horizon=None, dynamic_command=False):
+        """
+        Prepare to send dynamic commands based on a fixed frequency.
+        """
         if not dynamic_command:
             return
 
@@ -207,6 +224,9 @@ class OSC(object):
         self._publisher_running = True
 
     def _step_robot_dynamic(self, pose):
+        """
+        Send dynamic commands based on a fixed frequency.
+        """
         assert self._publisher_running, "Need to call env.start_episode() before calling env.step()."
         timestamp = rospy.Time.now().to_time() - self.episode_init_time
         traj_gen_proto_msg = PosePositionSensorMessage(
@@ -231,7 +251,9 @@ class OSC(object):
         self.ros_rate.sleep()
 
     def end_episode(self):
-        # Stop the skill
+        """
+        Stop the dynamic command
+        """
         if self._publisher_running:
             # Alternatively can call self.robot.stop_skill()
             term_proto_msg = ShouldTerminateSensorMessage(timestamp=rospy.Time.now().to_time() - self.episode_init_time,
@@ -248,6 +270,10 @@ class OSC(object):
 
 
 class OSCXZPlane(OSC):
+    """
+    Only controls x z position and rotation along y.
+    """
+
     def __init__(self, *args, **kwargs):
         kwargs['control_axis'] = np.array([1., 0., 1., 0., 1., 0.])
         kwargs['controller_type'] = "OSC_XZPLANE"
@@ -288,6 +314,9 @@ def orientation_error(desired, current):
 
 
 def angle_diff(vec1, vec2, degree=True):
+    """
+    Calculate angle difference between two vectors.
+    """
     vec1 = vec1 / np.linalg.norm(vec1)
     vec2 = vec2 / np.linalg.norm(vec2)
     prod = np.dot(vec1, vec2)

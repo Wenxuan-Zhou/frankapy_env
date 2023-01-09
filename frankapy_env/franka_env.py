@@ -13,6 +13,10 @@ from frankapy_env.osc import OSC, OSCXZPlane
 
 
 class FrankaEnv(gym.Env, ABC):
+    """
+    Basic functionalities of the franka robot wrapped as a gym environment
+    """
+
     def __init__(self,
                  offline=False,
                  init_joints=(0, 0.15, 0, -2.44, 0, 2.62, -7.84e-01),
@@ -116,7 +120,7 @@ class FrankaEnv(gym.Env, ABC):
         self.robot.open_gripper()
         if self.robot.get_gripper_width() < 0.07:
             print("Cannot open gripper.")
-            import ipdb; ipdb.set_trace()
+            ipdb.set_trace()
 
         # Move up gently
         pose = self.robot.get_pose()

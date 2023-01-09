@@ -24,6 +24,10 @@ FINETUNE_CALIBRATION_FILE = os.path.join(os.path.dirname(__file__), 'easy_handey
 
 
 class PointCloudModule(object):
+    """
+    A point cloud module which reads the camera and runs ICP.
+    """
+
     def __init__(self,
                  rosnode_name='pointcloud_module',
                  init_node=True,
@@ -71,6 +75,9 @@ class PointCloudModule(object):
         rospy.Subscriber('/points2', PointCloud2, callback)
 
     def load_transformation(self, filename):
+        """
+        Load camera calibration
+        """
         if '.yaml' in filename:
             calibration = yaml.load(open(filename, 'rb'), Loader=yaml.FullLoader)
             calibration = calibration['transformation']
@@ -87,6 +94,9 @@ class PointCloudModule(object):
         return
 
     def tune_transformation(self):
+        """
+        A procedure to finetune camera calibration based on ICP if you know the ground truth position of the object.
+        """
         print("Adjust camera calibration to align the object orientation.")
         # Tune camera calibration to align the current object orientation to zero rotation.
         self.load_transformation(CALIBRATION_FILE)
@@ -125,6 +135,9 @@ class PointCloudModule(object):
         return
 
     def update(self):
+        """
+        Update the point cloud observation
+        """
         global UPDATE_PC, PC_TIMESTAMP
         # Stop updating the point cloud and make a local copy
         UPDATE_PC = False
@@ -136,7 +149,7 @@ class PointCloudModule(object):
             rospy.loginfo("-- No point cloud.")
             return
 
-        pc_o3d = convert_to_o3d(pc_raw_local)           # Convert ros_cloud to open3d point cloud
+        pc_o3d = convert_to_o3d(pc_raw_local)  # Convert ros_cloud to open3d point cloud
         pc_o3d = pc_o3d.uniform_down_sample(self.down_sample)
         pc_o3d = pc_o3d.transform(self.transformation)  # Transform into robot coordinate
         pc_o3d = crop(pc_o3d, x_min=self.x_min, x_max=self.x_max, y_min=self.y_min, y_max=self.y_max,
@@ -146,48 +159,73 @@ class PointCloudModule(object):
         return
 
     def load(self, filename):
+        """
+        Load a point cloud from a file
+        """
         self.pc = o3d.io.read_point_cloud(filename)
         self.pc_timestamp = None
         return
 
     def draw(self):
+        """
+        Visualize the current observed point cloud and some additional helper visualizations
+        """
         o3d.visualization.draw_geometries([self.pc] + self.visualizations)
         return
 
     def save(self, filename=None):
+        """
+        Save the current point cloud
+        """
         if filename is None:
             filename = str(datetime.datetime.now()) + '.pcd'
         o3d.io.write_point_cloud(filename, self.pc)
         rospy.loginfo("-- Write result point cloud to: " + filename)
 
     def add_visualizations(self, pointcloud=None, filename=None):
+        """
+        Add helper visualization
+        """
         if filename is not None:
             pointcloud = o3d.io.read_point_cloud(filename)
         self.visualizations.append(pointcloud)
 
     def run_icp(self):
+        """
+        Run ICP
+        """
         t = time.time()
         reg_p2p = o3d.pipelines.registration.registration_icp(
             self.pc, self.template, self.icp_threshold, self.icp_result,
             o3d.pipelines.registration.TransformationEstimationPointToPoint(),
-            o3d.pipelines.registration.ICPConvergenceCriteria(relative_fitness=1e-06, relative_rmse=1e-06, max_iteration=100))
+            o3d.pipelines.registration.ICPConvergenceCriteria(relative_fitness=1e-06, relative_rmse=1e-06,
+                                                              max_iteration=100))
         rospy.loginfo("ICP: Delay: {:.2f}\t Fitness {:.2f} \t MSE {:.2e}"
-                      .format(time.time()-t, reg_p2p.fitness, reg_p2p.inlier_rmse))
+                      .format(time.time() - t, reg_p2p.fitness, reg_p2p.inlier_rmse))
         self.icp_result = reg_p2p.transformation
         return
 
     def draw_icp(self):
+        """
+        Visualize ICP results
+        """
         template_copy = copy.deepcopy(self.template)
         template_copy = template_copy.transform(self.template_pose)
         o3d.visualization.draw_geometries([self.pc, template_copy] + self.visualizations)
         return
 
     def get_transformed_template_pc(self):
+        """
+        Get transformed template point cloud
+        """
         template_copy = copy.deepcopy(self.template)
         template_copy = template_copy.transform(self.template_pose)
         return template_copy
 
     def save_icp(self, filename=None):
+        """
+        Save ICP results
+        """
         t = time.time()
         if filename is None:
             filename = 'icp ' + str(datetime.datetime.now()) + '.pcd'
@@ -196,7 +234,7 @@ class PointCloudModule(object):
         self.pc.colors = o3d.utility.Vector3dVector(np.array([[0, 0, 1] for _ in range(len(self.pc.points))]))
         o3d.io.write_point_cloud(filename, self.pc + template_copy)
         rospy.loginfo("-- Write result point cloud to: " + filename)
-        rospy.loginfo("File saving delay:" + str(time.time()-t))
+        rospy.loginfo("File saving delay:" + str(time.time() - t))
 
     @property
     def template_pose(self):
@@ -204,6 +242,9 @@ class PointCloudModule(object):
 
 
 def inv(rgt):
+    """
+    Matrix inverse
+    """
     rgt_inv = np.eye(4)
     rgt_inv[:3, :3] = rgt[:3, :3].transpose()
     rgt_inv[:3, 3] = -rgt_inv[:3, :3] @ rgt[:3, 3]
@@ -211,6 +252,9 @@ def inv(rgt):
 
 
 def convert_to_o3d(data):
+    """
+    Convert ros reading to open3d format
+    """
     pc = ros_numpy.numpify(data)
     points = np.zeros((pc.shape[0], 3), dtype=np.float64)
     points[:, 0] = pc['x']
@@ -223,6 +267,9 @@ def convert_to_o3d(data):
 
 
 def crop(pc, x_min=None, x_max=None, y_min=None, y_max=None, z_min=None, z_max=None):
+    """
+    Crop the point cloud
+    """
     pc_o3d_points = np.asarray(pc.points)
     x, y, z = pc_o3d_points[:, 0], pc_o3d_points[:, 1], pc_o3d_points[:, 2]
     pfilter = np.ones_like(x, dtype=bool)
@@ -243,6 +290,9 @@ def crop(pc, x_min=None, x_max=None, y_min=None, y_max=None, z_min=None, z_max=N
 
 
 def ground():
+    """
+    Define a ground point cloud for visualization
+    """
     # Ground
     x = np.linspace(0, 1, 31)
     y = np.linspace(-0.5, 0.5, 31)
@@ -256,6 +306,9 @@ def ground():
 
 
 def box(box_size=(0.15, 0.20, 0.05), color=(1, 0, 0)):
+    """
+    Define a box shape point cloud
+    """
     box_size = np.array(box_size)
     # Object
     x = np.linspace(0, box_size[0], int(box_size[0] * 100 * 2))

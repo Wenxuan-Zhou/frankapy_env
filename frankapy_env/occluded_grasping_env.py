@@ -1,6 +1,6 @@
-import os
 import numpy as np
 import open3d as o3d
+import os
 import rospy
 import time
 from autolab_core import RigidTransform
@@ -11,6 +11,10 @@ from frankapy_env.pointcloud import PointCloudModule, box, ground
 
 
 class OccludedGraspingEnv(FrankaEnv):
+    """
+    Defines task-specific functions of the Occluded Grasping task.
+    """
+
     def __init__(self, offline=False, init_joints=(0, 0.15, 0, -2.44, 0, 2.62, -7.84e-01), controller="OSC",
                  control_freq=None, horizon=None, object_name="Box-0"):
 
@@ -24,27 +28,31 @@ class OccludedGraspingEnv(FrankaEnv):
         self.setup_pc_module()
 
     def setup_pc_module(self):
+        """
+        Setup point cloud observation and pose estimation
+        """
         self.pc = PointCloudModule(icp_threshold=0.01, init_node=False, z_min=0.065)
         self.pc.add_visualizations(ground())
         if self.object_name == "Box-0":
             self.pc.template = box()  # Box-0
         elif self.object_name == "Box-1":
-            self.pc.template = box(box_size=(0.154, 0.292,   0.058))  # Box-1
+            self.pc.template = box(box_size=(0.154, 0.292, 0.058))  # Box-1
             self.grip_width = 0.038
         elif self.object_name == "Box-2":
-            self.pc.template = box(box_size=(0.153, 0.222,  0.074))  # Box-2
+            self.pc.template = box(box_size=(0.153, 0.222, 0.074))  # Box-2
             self.grip_width = 0.055
         elif self.object_name == "Box-3":
-            self.pc.template = box(box_size=(0.165, 0.245,  0.052))  # Box-3
+            self.pc.template = box(box_size=(0.165, 0.245, 0.052))  # Box-3
         else:
-            object_pcd_file = os.path.join(os.path.dirname(__file__), 'scanned_objects',  self.object_name + ".pcd")
+            object_pcd_file = os.path.join(os.path.dirname(__file__), 'scanned_objects', self.object_name + ".pcd")
             self.pc.template = o3d.io.read_point_cloud(object_pcd_file)
             if self.object_name == "container" or self.object_name == "container_reverse":
                 self.grip_width = 0.045
             elif self.object_name == "largebottle":
                 self.grip_width = 0.01
 
-        self.pc.template.colors = o3d.utility.Vector3dVector(np.array([(1, 0, 0) for _ in range(len(self.pc.template.points))]))
+        self.pc.template.colors = o3d.utility.Vector3dVector(
+            np.array([(1, 0, 0) for _ in range(len(self.pc.template.points))]))
         object_pose = np.eye(4)
         object_pose[:3, 3] = -np.array([0.55, 0, 0.09])
         self.pc.icp_result = object_pose
@@ -101,7 +109,7 @@ class OccludedGraspingEnv(FrankaEnv):
         object_pose = RigidTransform(rotation=object_pose_mat[:3, :3],
                                      translation=object_pose_mat[:3, 3],
                                      from_frame='object', to_frame='world')
-        obs['object_pose'] = object_pose.vec # + np.array([0.02, 0, 0, 0, 0, 0, 0])
+        obs['object_pose'] = object_pose.vec  # + np.array([0.02, 0, 0, 0, 0, 0, 0])
         obs['ee_relative_to_object'] = (object_pose.inverse() * ee_pose).vec  # fingertip
         obs['ee_base_relative_to_object'] = (object_pose.inverse() * ee_base_pose).vec
 
@@ -125,7 +133,7 @@ class OccludedGraspingEnv(FrankaEnv):
 
     def end_episode(self):
         self.controller.end_episode()
-        self.grasp_and_lift()   # Try to lift the object as a measure of success
+        self.grasp_and_lift()  # Try to lift the object as a measure of success
         rospy.loginfo('END OF EPISODE.')
 
     def grasp_and_lift(self):

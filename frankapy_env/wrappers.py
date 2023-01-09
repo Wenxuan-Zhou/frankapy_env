@@ -6,6 +6,9 @@ from gym.core import ObservationWrapper
 class ObsWrapper(ObservationWrapper):
 
     def observation(self, obs):
+        """
+        Gather a subset of the full observations to be used as policy input.
+        """
         controller_type = self.controller.controller_type
         if '3D' in controller_type or 'XZPLANE' in controller_type:
             reduced_pose = clean_xzplane_pose
@@ -29,6 +32,9 @@ class ObsWrapper(ObservationWrapper):
 
 
 def clean_xzplane_pose(pos, quat, offset=False):
+    """
+    Project a 6D pose to the xz plane.
+    """
     if offset:
         # An ugly implementation that avoids discontinuity of euler output.
         rotate_back = transformations.quaternion_from_euler(0, -np.pi / 2, 0)
@@ -38,4 +44,7 @@ def clean_xzplane_pose(pos, quat, offset=False):
 
 
 def clean_6d_pose(pos, quat, offset=False):
+    """
+    Concatenate the pose
+    """
     return np.concatenate([pos, quat])
